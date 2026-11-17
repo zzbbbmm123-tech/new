@@ -593,9 +593,10 @@ def render_pinned_hsi_row(
 
 
 def parse_batch_input(raw_text: str):
-    """解析多行『YYYY,MM,DD  股票名稱』格式輸入"""
+    """解析多行『YYYY,MM,DD  股票名稱』格式輸入（亦支援用分號 ; 分隔多筆，方便手機輸入）"""
     entries = []
-    for line in raw_text.strip().splitlines():
+    normalized_text = raw_text.replace("；", "\n").replace(";", "\n")
+    for line in normalized_text.strip().splitlines():
         line = line.strip()
         if not line:
             continue
@@ -733,14 +734,38 @@ def generate_vertical_pdf(pdf_pairs: list) -> bytes:
 # ================= 介面佈局 =================
 st.title("📈 批次股票 K 線與恒生指數對比系統")
 
+default_input = "2024,03,18\t中遠海能\n2024,03,18\t中金公司\n2024,03,18\t中國中鐵"
+if "user_input_text" not in st.session_state:
+    st.session_state["user_input_text"] = default_input
+
 with st.sidebar:
     st.header("1. 批次輸入股票與日期")
-    default_input = "2024,03,18\t中遠海能\n2024,03,18\t中金公司\n2024,03,18\t中國中鐵"
+    with st.expander("📱 手機快速加入一隻股票", expanded=True):
+        q_col1, q_col2 = st.columns(2)
+        with q_col1:
+            quick_date = st.date_input("基準日期", value=datetime(2024, 3, 18))
+        with q_col2:
+            quick_name = st.text_input("股票名／代號", placeholder="例如：騰訊")
+        b_col1, b_col2 = st.columns(2)
+        with b_col1:
+            if st.button("➕ 加入清單", use_container_width=True):
+                clean_q = quick_name.strip()
+                if clean_q:
+                    new_line = f"{quick_date.strftime('%Y,%m,%d')}\t{clean_q}"
+                    cur = st.session_state["user_input_text"].strip()
+                    st.session_state["user_input_text"] = f"{cur}\n{new_line}" if cur else new_line
+                    st.rerun()
+        with b_col2:
+            if st.button("🗑️ 清空清單", use_container_width=True):
+                st.session_state["user_input_text"] = ""
+                st.rerun()
+
     user_input = st.text_area(
-        "每行輸入一隻股票（日期與股票名用 Tab 或空格分隔）：",
-        value=default_input,
-        height=200,
+        "批次清單（每行一隻，手機可用 ; 分隔）：",
+        key="user_input_text",
+        height=160,
     )
+    st.button("🔄 套用並更新圖表", use_container_width=True)
 
     st.header("2. 圖表顯示設定")
     display_layout = st.radio(
